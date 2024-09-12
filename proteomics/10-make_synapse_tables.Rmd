@@ -1,0 +1,130 @@
+---
+title: "Make Synapse tables for Ex14 proteomics"
+author: "Michael Nestor (michael.nestor@pnnl.gov)"
+date: "5/28/2021"
+output: html_document
+---
+
+```{r helpers, echo=FALSE}
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(stringr)
+
+source("../util/synapseUtil.R")
+syn <- synapseLogin()
+
+make_global_table <- function(crosstab.syn, metadata.syn,
+                              tabname, parentId) {
+  # get metadata
+  path_to_metadata <- syn$get(metadata.syn)$path
+  metadata <- read.table(path_to_metadata, header=T, sep="\t",
+                         colClasses="character") %>%
+    mutate(SampleID = str_extract(Sample, "\\d\\d$"),
+           SampleName = Sample) %>%
+    dplyr::select(-Sample, -Treatment.Time) %>%
+    dplyr::select(SampleID, SampleName, everything())
+  
+  # get crosstab
+  path_to_crosstab <- syn$get(crosstab.syn)$path
+  crosstab <- read.table(path_to_crosstab,
+                         sep='\t', header=T, check.names=F)
+  crosstab <- as.data.frame(crosstab)
+  crosstab$Gene <- rownames(crosstab)
+  crosstab <- crosstab %>% select(Gene, everything())
+  
+  # merge
+  crosstab_long <- crosstab %>% 
+    pivot_longer(cols = c(everything(), -Gene),
+                 names_to='SampleID', values_to='LogRatio') %>%
+    filter(!is.na(LogRatio)) %>%
+    left_join(metadata, by = "SampleID")
+  # upload
+  synTableStore(tab = crosstab_long,
+                tabname = tabname,
+                parentId = parentId)
+}
+
+make_phospho_table <- function(crosstab.syn, metadata.syn,
+                               tabname, parentId) {
+  # get metadata
+  path_to_metadata <- syn$get(metadata.syn)$path
+  metadata <- read.table(path_to_metadata, header=T, sep="\t",
+                         colClasses="character") %>%
+    mutate(SampleID = str_extract(Sample, "\\d\\d$"),
+           SampleName = Sample) %>%
+    dplyr::select(-Sample, -Treatment.Time) %>%
+    dplyr::select(SampleID, SampleName, everything())
+  
+  # get crosstab
+  path_to_crosstab <- syn$get(crosstab.syn)$path
+  crosstab <- read.table(path_to_crosstab,
+                         sep='\t', header=T, check.names=F)
+  crosstab <- as.data.frame(crosstab)
+  crosstab$SiteID <- rownames(crosstab)
+  crosstab$Gene <- sub("^(.*)-.*$", "\\1", crosstab$SiteID)
+  crosstab <- crosstab %>% select(Gene, SiteID, everything())
+  
+  # merge
+  crosstab_long <- crosstab %>% 
+    pivot_longer(cols = c(everything(), -Gene, -SiteID),
+                 names_to='SampleID', values_to='LogRatio') %>%
+    filter(!is.na(LogRatio)) %>%
+    left_join(metadata, by = "SampleID")
+
+  # upload
+  synTableStore(tab = crosstab_long,
+                tabname = tabname,
+                parentId = parentId)
+}
+
+```
+
+```{r main_loop}
+
+syn <- synapseLogin()
+
+
+parentId <- "syn22128879"
+# Ex14 Molm14
+
+metadata.syn <- "syn25715185"
+make_global_table(crosstab.syn = "syn25813103",
+                  metadata.syn = metadata.syn,
+                  tabname      = "amlDrugCombos Molm14 Proteomics",
+                  parentId     = parentId)
+make_global_table(crosstab.syn = "syn25813104",
+                  metadata.syn = metadata.syn,
+                  tabname      = "amlDrugCombos Molm14 Proteomics uncorrected",
+                  parentId     = parentId)
+
+make_phospho_table(crosstab.syn ="syn25714246",
+                   metadata.syn = metadata.syn,
+                   tabname      ="amlDrugCombos Molm14 Phosphoproteomics",
+                   parentId     = parentId)
+make_phospho_table(crosstab.syn = "syn25714253",
+                   metadata.syn = metadata.syn,
+                   tabname      = "amlDrugCombos Molm14 Phosphoproteomics uncorrected",
+                   parentId     = parentId)
+```
+
+```{r}
+metadata.syn <- "syn25715184"
+make_global_table(crosstab.syn = "syn25714207",
+                  metadata.syn = metadata.syn,
+                  tabname      = "amlDrugCombos HL60 Proteomics",
+                  parentId     = parentId)
+make_global_table(crosstab.syn = "syn25714210",
+                  metadata.syn = metadata.syn,
+                  tabname      = "amlDrugCombos HL60 Proteomics uncorrected",
+                  parentId     = parentId)
+
+make_phospho_table(crosstab.syn ="syn25714267",
+                   metadata.syn = metadata.syn,
+                   tabname      ="amlDrugCombos HL60 Phosphoproteomics",
+                   parentId     = parentId)
+make_phospho_table(crosstab.syn = "syn25714270",
+                   metadata.syn = metadata.syn,
+                   tabname      = "amlDrugCombos HL60 Phosphoproteomics uncorrected",
+                   parentId     = parentId)
+```
